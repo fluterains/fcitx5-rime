@@ -7,6 +7,7 @@
 #include "rimestate.h"
 #include "rimecandidate.h"
 #include "rimeengine.h"
+#include <fcitx-utils/keysym.h>
 #include <fcitx-utils/stringutils.h>
 #include <fcitx-utils/textformatflags.h>
 #include <fcitx-utils/utf8.h>
@@ -74,22 +75,23 @@ std::string RimeState::subMode() {
 
 std::string RimeState::subModeLabel() {
     std::string result;
-    getStatus([&result](const RimeStatus &status) {
-        if (status.is_disabled) {
-            result = "";
-        } else if (status.is_ascii_mode) {
-            result = "A";
-        } else if (status.schema_name && status.schema_name[0] != '.') {
-            result = status.schema_name;
-            if (!result.empty() &&
-                utf8::lengthValidated(result) != utf8::INVALID_LENGTH) {
-                result = result.substr(
-                    0, std::distance(result.begin(),
-                                     utf8::nextChar(result.begin())));
-            }
-        }
+    getStatus([this, &result](const RimeStatus &status) {
+        result = modeLabel(status);
     });
     return result;
+}
+
+std::string RimeState::modeLabel(const RimeStatus &status) {
+    if (status.is_disabled) {
+        return "";
+    }
+    if (capsLock_) {
+        return "A";
+    }
+    if (status.is_ascii_mode) {
+        return C_("Rime mode label", "en");
+    }
+    return C_("Rime mode label", "zh");
 }
 
 void RimeState::setLatinMode(bool latin) {
@@ -120,8 +122,17 @@ void RimeState::keyEvent(KeyEvent &event) {
         return;
     }
 
+    const auto key = event.rawKey();
+    if (!event.isRelease()) {
+        if (key.sym() == FcitxKey_Caps_Lock) {
+            capsLock_ = !capsLock_;
+        } else {
+            capsLock_ = key.states().test(KeyState::CapsLock);
+        }
+    }
+
     lastMode_ = subMode();
-    auto states = event.rawKey().states() &
+    auto states = key.states() &
                   KeyStates{KeyState::Mod1, KeyState::CapsLock, KeyState::Shift,
                             KeyState::Ctrl, KeyState::Super};
     if (states.test(KeyState::Super)) {
@@ -133,7 +144,7 @@ void RimeState::keyEvent(KeyEvent &event) {
         // IBUS_RELEASE_MASK
         intStates |= (1 << 30);
     }
-    auto result = api->process_key(session, event.rawKey().sym(), intStates);
+    auto result = api->process_key(session, key.sym(), intStates);
 
     auto ic = event.inputContext();
     RIME_STRUCT(RimeCommit, commit);

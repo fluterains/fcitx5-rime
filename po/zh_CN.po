@@ -65,6 +65,16 @@ msgstr "已启用半角字符。"
 msgid "Latin Mode"
 msgstr "英文模式"
 
+#: src/rimestate.cpp
+msgctxt "Rime mode label"
+msgid "zh"
+msgstr "中"
+
+#: src/rimestate.cpp
+msgctxt "Rime mode label"
+msgid "en"
+msgstr "英"
+
 #: src/rimeengine.h:77
 msgid "Load available plugins automatically"
 msgstr "自动加载可用插件"

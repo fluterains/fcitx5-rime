@@ -69,6 +69,16 @@ msgstr "已啟用半形字符。"
 msgid "Latin Mode"
 msgstr "羅馬拼音模式"
 
+#: src/rimestate.cpp
+msgctxt "Rime mode label"
+msgid "zh"
+msgstr "中"
+
+#: src/rimestate.cpp
+msgctxt "Rime mode label"
+msgid "en"
+msgstr "英"
+
 #: src/rimeengine.h:77
 msgid "Load available plugins automatically"
 msgstr "自動載入可用插件"

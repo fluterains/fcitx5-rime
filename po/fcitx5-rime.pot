@@ -59,6 +59,16 @@ msgstr ""
 msgid "Latin Mode"
 msgstr ""
 
+#: src/rimestate.cpp
+msgctxt "Rime mode label"
+msgid "zh"
+msgstr ""
+
+#: src/rimestate.cpp
+msgctxt "Rime mode label"
+msgid "en"
+msgstr ""
+
 #: src/rimeengine.h:77
 msgid "Load available plugins automatically"
 msgstr ""
