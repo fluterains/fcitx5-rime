@@ -47,7 +47,6 @@ public:
 private:
     std::string modeLabel(const RimeStatus &status);
     std::string lastMode_;
-    bool capsLock_ = false;
     RimeEngine *engine_;
     InputContext &ic_;
     std::shared_ptr<RimeSessionHolder> session_;

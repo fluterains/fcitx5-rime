@@ -85,9 +85,6 @@ std::string RimeState::modeLabel(const RimeStatus &status) {
     if (status.is_disabled) {
         return "";
     }
-    if (capsLock_) {
-        return "A";
-    }
     if (status.is_ascii_mode) {
         return C_("Rime mode label", "en");
     }
@@ -123,14 +120,6 @@ void RimeState::keyEvent(KeyEvent &event) {
     }
 
     const auto key = event.rawKey();
-    if (!event.isRelease()) {
-        if (key.sym() == FcitxKey_Caps_Lock) {
-            capsLock_ = !capsLock_;
-        } else {
-            capsLock_ = key.states().test(KeyState::CapsLock);
-        }
-    }
-
     lastMode_ = subMode();
     auto states = key.states() &
                   KeyStates{KeyState::Mod1, KeyState::CapsLock, KeyState::Shift,
