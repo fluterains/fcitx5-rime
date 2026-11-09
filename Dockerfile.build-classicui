@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /src
 RUN curl -fL https://codeload.github.com/fcitx/fcitx5/tar.gz/refs/tags/5.1.7 -o /tmp/source.tar.gz \
     && tar -xzf /tmp/source.tar.gz --strip-components=1
-COPY patches/fcitx5-5.1.7-muted-highlight.patch /tmp/highlight.patch
+COPY patches/fcitx5-5.1.7-composition-anchor.patch /tmp/highlight.patch
 RUN patch -p1 < /tmp/highlight.patch \
     && cmake -S . -B /build -G Ninja -DCMAKE_BUILD_TYPE=Release \
        -DCMAKE_INSTALL_PREFIX=/usr -DENABLE_TEST=OFF -DENABLE_ENCHANT=OFF \

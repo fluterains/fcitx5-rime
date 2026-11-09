@@ -1,0 +1,81 @@
+--- a/src/ui/classic/inputwindow.h
++++ b/src/ui/classic/inputwindow.h
+@@ -65,6 +65,7 @@
+     // Override the font DPI in cairo/pango context. If less-equal than zero, it
+     // will restore to font map default dpi.
+     void setFontDPI(int dpi);
++    Rect compositionCursorRect(InputContext *inputContext);
+     void resizeCandidates(size_t n);
+     void appendText(std::string &s, PangoAttrList *attrList,
+                     PangoAttrList *highlightAttrList, const Text &text);
+@@ -89,6 +90,9 @@
+     std::vector<MultilineLayout> candidateLayouts_;
+     std::vector<Rect> candidateRegions_;
+     TrackableObjectReference<InputContext> inputContext_;
++    TrackableObjectReference<InputContext> anchorContext_;
++    Rect compositionAnchor_;
++    bool anchorActive_ = false;
+     bool visible_ = false;
+     int cursor_ = 0;
+     size_t nCandidates_ = 0;
+--- a/src/ui/classic/inputwindow.cpp
++++ b/src/ui/classic/inputwindow.cpp
+@@ -271,7 +271,31 @@
+     pango_attr_list_unref(newAttrList);
+ }
+ 
++Rect InputWindow::compositionCursorRect(InputContext *ic) {
++    if (!ic) {
++        anchorActive_ = false;
++        anchorContext_.unwatch();
++        return {};
++    }
++    auto entry = parent_->instance()->inputMethodEntry(ic);
++    const auto &panel = ic->inputPanel();
++    const bool composing = !panel.preedit().empty() ||
++                           !panel.clientPreedit().empty();
++    if (!entry || entry->addon() != "rime" || !composing) {
++        anchorActive_ = false;
++        anchorContext_.unwatch();
++        return ic->cursorRect();
++    }
++    if (!anchorActive_ || anchorContext_.get() != ic) {
++        compositionAnchor_ = ic->cursorRect();
++        anchorContext_ = ic->watch();
++        anchorActive_ = true;
++    }
++    return compositionAnchor_;
++}
++
+ std::pair<int, int> InputWindow::update(InputContext *inputContext) {
++    compositionCursorRect(inputContext);
+     if ((parent_->suspended() &&
+          parent_->instance()->currentUI() != "kimpanel") ||
+         !inputContext) {
+--- a/src/ui/classic/xcbinputwindow.cpp
++++ b/src/ui/classic/xcbinputwindow.cpp
+@@ -56,9 +56,10 @@
+     topSW = theme.inputPanel->shadowMargin->marginTop.value();
+     bottomSW = theme.inputPanel->shadowMargin->marginBottom.value();
+ 
+-    x = inputContext->cursorRect().left();
+-    y = inputContext->cursorRect().top();
+-    h = inputContext->cursorRect().height();
++    const auto anchor = compositionCursorRect(inputContext);
++    x = anchor.left();
++    y = anchor.top();
++    h = anchor.height();
+ 
+     actualWidth = width() - leftSW - rightSW;
+     actualWidth = actualWidth <= 0 ? width() : actualWidth;
+@@ -120,8 +121,8 @@
+ }
+ 
+ void XCBInputWindow::updateDPI(InputContext *inputContext) {
+-    dpi_ = ui_->dpiByPosition(inputContext->cursorRect().left(),
+-                              inputContext->cursorRect().top());
++    const auto anchor = compositionCursorRect(inputContext);
++    dpi_ = ui_->dpiByPosition(anchor.left(), anchor.top());
+ 
+     setFontDPI(dpi_);
+ }

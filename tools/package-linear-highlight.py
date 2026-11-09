@@ -13,7 +13,11 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--rime-base', required=True, type=Path)
 parser.add_argument('--modules-base', required=True, type=Path)
 parser.add_argument('--build-dir', type=Path, default=Path('out/linear-highlight'))
+parser.add_argument('--revision', type=int, default=1)
 args = parser.parse_args()
+if args.revision < 1:
+    parser.error('--revision must be positive')
+suffix = '+linear' + str(args.revision)
 output = args.build_dir.resolve()
 output.mkdir(parents=True, exist_ok=True)
 
@@ -29,7 +33,7 @@ def package(base, name, replace):
         old_version = re.search(r'^Version: (.+)$', text, re.M).group(1)
         # fcitx5 and fcitx5-modules-dev depend on the exact modules version.
         # Keep that version and identify this rebuild with a custom field.
-        version = old_version if name == 'fcitx5-modules' else old_version + '+linear1'
+        version = old_version if name == 'fcitx5-modules' else old_version + suffix
         replace(root)
         files = sorted(p for p in root.rglob('*')
                        if p.is_file() and not p.is_symlink()
@@ -38,11 +42,11 @@ def package(base, name, replace):
             f'{hashlib.md5(p.read_bytes()).hexdigest()}  {p.relative_to(root)}\n'
             for p in files))
         text = re.sub(r'^Version: .+$', 'Version: ' + version, text, flags=re.M)
-        text += 'X-Local-Variant: linear-highlight-1\n'
+        text += f'X-Local-Variant: linear-highlight-{args.revision}\n'
         size = (sum(p.stat().st_size for p in files) + 1023) // 1024
         text = re.sub(r'^Installed-Size: \d+$', f'Installed-Size: {size}', text, flags=re.M)
         control.write_text(text)
-        filename_version = old_version + '+linear1'
+        filename_version = old_version + suffix
         destination = output / f'{name}_{filename_version}_amd64.deb'
         subprocess.run(['dpkg-deb', '--root-owner-group', '-b', str(root), str(destination)], check=True)
         return destination

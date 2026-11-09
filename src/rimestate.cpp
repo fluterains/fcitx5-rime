@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: LGPL-2.1-or-later
  */
 
+#include <algorithm>
 #include "rimestate.h"
 #include "rimecandidate.h"
 #include "rimeengine.h"
@@ -260,6 +261,21 @@ void RimeState::updatePreedit(InputContext *ic, const RimeContext &context) {
             }
             ic->inputPanel().setClientPreedit(clientPreedit);
         }
+    } break;
+    case PreeditMode::RawInput: {
+        // Use the engine's input/caret pair, not the translated candidate or
+        // the presentation preedit (which can contain syllable separators).
+        const char *input = engine_->api()->get_input(session());
+        if (input) {
+            Text clientPreedit;
+            clientPreedit.append(input, TextFormatFlag::Underline);
+            clientPreedit.setCursor(std::min<size_t>(
+                engine_->api()->get_caret_pos(session()),
+                clientPreedit.textLength()));
+            ic->inputPanel().setClientPreedit(clientPreedit);
+        }
+        ic->inputPanel().setPreedit(
+            preeditFromRimeContext(context, TextFormatFlag::NoFlag));
     } break;
     case PreeditMode::ComposingText: {
         Text clientPreedit =

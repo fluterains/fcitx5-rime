@@ -5,7 +5,6 @@
  */
 
 #include "rimecandidate.h"
-#include "rimecandidateformat.h"
 #include "rimeengine.h"
 #include <cstring>
 #include <fcitx-utils/log.h>
@@ -18,13 +17,13 @@ namespace fcitx {
 
 RimeCandidateWord::RimeCandidateWord(RimeEngine *engine,
                                      const RimeCandidate &candidate, KeySym sym,
-                                     int idx, TextFormatFlags format)
+                                     int idx)
     : CandidateWord(), engine_(engine), sym_(sym), idx_(idx) {
     Text text;
-    text.append(std::string(candidate.text), format);
+    text.append(std::string(candidate.text));
     if (candidate.comment && strlen(candidate.comment)) {
-        text.append(" ", format);
-        text.append(std::string(candidate.comment), format);
+        text.append(" ");
+        text.append(std::string(candidate.comment));
     }
     setText(text);
 }
@@ -71,11 +70,6 @@ RimeCandidateList::RimeCandidateList(RimeEngine *engine, InputContext *ic,
     setBulk(this);
 
     const auto &menu = context.menu;
-    const auto session = engine_->state(ic_)->session(false);
-    const TextFormatFlags format =
-        session && !engine_->api()->get_option(session, "_linear")
-            ? TextFormatFlags(RimeMutedHighlight)
-            : TextFormatFlags();
 
     int num_select_keys = menu.select_keys ? strlen(menu.select_keys) : 0;
     bool has_label = RIME_STRUCT_HAS_MEMBER(context, context.select_labels) &&
@@ -93,7 +87,7 @@ RimeCandidateList::RimeCandidateList(RimeEngine *engine, InputContext *ic,
             label = std::to_string((i + 1) % 10);
         }
         label.append(" ");
-        labels_.emplace_back(label, format);
+        labels_.emplace_back(label);
 
         if (i < num_select_keys) {
             sym = static_cast<KeySym>(menu.select_keys[i]);
@@ -101,7 +95,7 @@ RimeCandidateList::RimeCandidateList(RimeEngine *engine, InputContext *ic,
             sym = static_cast<KeySym>('0' + (i + 1) % 10);
         }
         candidateWords_.emplace_back(std::make_unique<RimeCandidateWord>(
-            engine, menu.candidates[i], sym, i, format));
+            engine, menu.candidates[i], sym, i));
 
         if (i == menu.highlighted_candidate_index) {
             cursor_ = i;
