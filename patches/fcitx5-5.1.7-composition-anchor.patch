@@ -54,27 +54,67 @@
          !inputContext) {
 --- a/src/ui/classic/xcbinputwindow.h
 +++ b/src/ui/classic/xcbinputwindow.h
-@@ -27,6 +27,9 @@
+@@ -7,6 +7,7 @@
+ #ifndef _FCITX_UI_CLASSIC_XCBINPUTWINDOW_H_
+ #define _FCITX_UI_CLASSIC_XCBINPUTWINDOW_H_
+ 
++#include <array>
+ #include "inputwindow.h"
+ #include "xcbwindow.h"
+ 
+@@ -17,6 +18,7 @@
+ public:
+     XCBInputWindow(XCBUI *ui);
+ 
++    ~XCBInputWindow() override;
+     void postCreateWindow() override;
+     void update(InputContext *inputContext);
+     void updatePosition(InputContext *inputContext);
+@@ -27,6 +29,22 @@
  
  private:
      void repaint();
 +    cairo_surface_t *prepareFrame(int width, int height);
-+    int frameWidth_ = 0;
-+    int frameHeight_ = 0;
++    void releaseFrames();
++    void setFrameBackground();
++    void presentFrame();
++    void copyFrame(int index);
++    struct Frame {
++        xcb_pixmap_t pixmap = XCB_NONE;
++        UniqueCPtr<cairo_surface_t, cairo_surface_destroy> surface;
++        int width = 0;
++        int height = 0;
++    };
++    std::array<Frame, 2> frames_;
++    xcb_window_t frameWindow_ = XCB_NONE;
++    xcb_gcontext_t copyGC_ = XCB_NONE;
++    int frontFrame_ = -1;
++    int preparedFrame_ = 0;
      xcb_atom_t atomBlur_;
      int dpi_ = -1;
  };
 --- a/src/ui/classic/xcbinputwindow.cpp
 +++ b/src/ui/classic/xcbinputwindow.cpp
-@@ -6,6 +6,7 @@
+@@ -6,7 +6,9 @@
   */
  
  #include "xcbinputwindow.h"
 +#include <algorithm>
  #include <pango/pangocairo.h>
++#include <cairo-xcb.h>
  #include <xcb/xcb_aux.h>
  #include <xcb/xcb_icccm.h>
-@@ -56,9 +57,10 @@
+ #include "fcitx-utils/rect.h"
+@@ -17,6 +19,8 @@
+     : XCBWindow(ui), InputWindow(ui->parent()),
+       atomBlur_(ui_->parent()->xcb()->call<IXCBModule::atom>(
+           ui_->displayName(), "_KDE_NET_WM_BLUR_BEHIND_REGION", false)) {}
++
++XCBInputWindow::~XCBInputWindow() { releaseFrames(); }
+ 
+ void XCBInputWindow::postCreateWindow() {
+     if (ui_->ewmh()->_NET_WM_WINDOW_TYPE_POPUP_MENU &&
+@@ -56,9 +60,10 @@
      topSW = theme.inputPanel->shadowMargin->marginTop.value();
      bottomSW = theme.inputPanel->shadowMargin->marginBottom.value();
  
@@ -88,7 +128,7 @@
  
      actualWidth = width() - leftSW - rightSW;
      actualWidth = actualWidth <= 0 ? width() : actualWidth;
-@@ -120,8 +122,8 @@
+@@ -120,8 +125,8 @@
  }
  
  void XCBInputWindow::updateDPI(InputContext *inputContext) {
@@ -99,24 +139,10 @@
  
      setFontDPI(dpi_);
  }
-@@ -130,6 +132,7 @@
-     if (!wid_) {
-         return;
-     }
-+    const bool sameComposition = anchorActive_ && anchorContext_.get() == inputContext;
-     auto oldVisible = visible();
-     if (inputContext) {
-         updateDPI(inputContext);
-@@ -141,6 +144,22 @@
+@@ -141,6 +146,20 @@
          }
          return;
      }
-+
-+    // Rime candidate text changes width on almost every key. Within one
-+    // composition, keep the widest frame so far instead of oscillating.
-+    if (anchorActive_ && sameComposition && oldVisible) {
-+        width = std::max(width, this->width());
-+    }
 +
 +    // Prepare the complete next frame offscreen before changing X geometry.
 +    auto *frame = prepareFrame(width, height);
@@ -127,6 +153,10 @@
 +    paint(c, width, height, /*scale=*/1.0);
 +    cairo_destroy(c);
 +    cairo_surface_flush(frame);
++    // Resize exposes are filled by X11 from the complete new frame, rather
++    // than the transparent background pixel. Keep the front pixmap immutable
++    // while rendering the next frame into the other buffer.
++    setFrameBackground();
  
      if (width != this->width() || height != this->height()) {
          resize(width, height);
@@ -136,7 +166,7 @@
  
 -    cairo_t *c = cairo_create(prerender());
      updatePosition(inputContext);
-+    render();
++    presentFrame();
      if (!oldVisible) {
          xcb_map_window(ui_->connection(), wid_);
      }
@@ -148,27 +178,98 @@
  }
  
  bool XCBInputWindow::filterEvent(xcb_generic_event_t *event) {
-@@ -239,11 +257,30 @@
+@@ -196,7 +214,11 @@
+     case XCB_EXPOSE: {
+         auto *expose = reinterpret_cast<xcb_expose_event_t *>(event);
+         if (expose->window == wid_) {
+-            repaint();
++            if (expose->count == 0 && frontFrame_ >= 0) {
++                // Expose does not change content: restore the completed frame.
++                copyFrame(frontFrame_);
++                xcb_flush(ui_->connection());
++            }
+             return true;
+         }
+         break;
+@@ -239,15 +261,95 @@
      return false;
  }
  
-+cairo_surface_t *XCBInputWindow::prepareFrame(int width, int height) {
-+    if (!contentSurface_ || frameWidth_ != width || frameHeight_ != height) {
-+        contentSurface_.reset(cairo_surface_create_similar(
-+            surface_.get(), CAIRO_CONTENT_COLOR_ALPHA, width, height));
-+        frameWidth_ = width;
-+        frameHeight_ = height;
++void XCBInputWindow::releaseFrames() {
++    contentSurface_.reset();
++    for (auto &frame : frames_) {
++        frame.surface.reset();
++        if (frame.pixmap != XCB_NONE) {
++            xcb_free_pixmap(ui_->connection(), frame.pixmap);
++        }
++        frame.pixmap = XCB_NONE;
++        frame.width = frame.height = 0;
 +    }
-+    if (cairo_surface_status(contentSurface_.get()) != CAIRO_STATUS_SUCCESS) {
-+        contentSurface_.reset();
++    if (copyGC_ != XCB_NONE) {
++        xcb_free_gc(ui_->connection(), copyGC_);
++        copyGC_ = XCB_NONE;
++    }
++    frontFrame_ = -1;
++    frameWindow_ = XCB_NONE;
++}
++
++cairo_surface_t *XCBInputWindow::prepareFrame(int width, int height) {
++    auto *conn = ui_->connection();
++    if (frameWindow_ != wid_) {
++        releaseFrames();
++        frameWindow_ = wid_;
++        copyGC_ = xcb_generate_id(conn);
++        const uint32_t graphicsExposures = 0;
++        xcb_create_gc(conn, copyGC_, wid_, XCB_GC_GRAPHICS_EXPOSURES,
++                      &graphicsExposures);
++    }
++    preparedFrame_ = frontFrame_ == 0 ? 1 : 0;
++    auto &frame = frames_[preparedFrame_];
++    if (!frame.surface || frame.width < width || frame.height < height) {
++        frame.surface.reset();
++        if (frame.pixmap != XCB_NONE) {
++            xcb_free_pixmap(conn, frame.pixmap);
++        }
++        // Only backing storage retains capacity; the window always uses the
++        // current layout's exact width and height, including on shrink.
++        frame.width = std::max(frame.width, width);
++        frame.height = std::max(frame.height, height);
++        auto *screen = xcb_aux_get_screen(conn, ui_->defaultScreen());
++        auto visual = vid_ ? vid_ : screen->root_visual;
++        frame.pixmap = xcb_generate_id(conn);
++        xcb_create_pixmap(conn, xcb_aux_get_depth_of_visual(screen, visual),
++                          frame.pixmap, wid_, frame.width, frame.height);
++        frame.surface.reset(cairo_xcb_surface_create(
++            conn, frame.pixmap, xcb_aux_find_visual_by_id(screen, visual),
++            frame.width, frame.height));
++    }
++    if (cairo_surface_status(frame.surface.get()) != CAIRO_STATUS_SUCCESS) {
 +        return nullptr;
 +    }
-+    // Reused buffers must not retain glyphs or pixels in transparent corners.
-+    auto *cr = cairo_create(contentSurface_.get());
++    contentSurface_.reset(cairo_surface_reference(frame.surface.get()));
++    auto *cr = cairo_create(frame.surface.get());
 +    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
 +    cairo_paint(cr);
 +    cairo_destroy(cr);
-+    return contentSurface_.get();
++    return frame.surface.get();
++}
++
++void XCBInputWindow::setFrameBackground() {
++    const uint32_t pixmap = frames_[preparedFrame_].pixmap;
++    xcb_change_window_attributes(ui_->connection(), wid_, XCB_CW_BACK_PIXMAP,
++                                  &pixmap);
++}
++
++void XCBInputWindow::copyFrame(int index) {
++    xcb_copy_area(ui_->connection(), frames_[index].pixmap, wid_, copyGC_,
++                   0, 0, 0, 0, width(), height());
++    cairo_surface_mark_dirty(surface_.get());
++}
++
++void XCBInputWindow::presentFrame() {
++    frontFrame_ = preparedFrame_;
++    // One server-side copy replaces the complete window image.
++    copyFrame(frontFrame_);
 +}
 +
  void XCBInputWindow::repaint() {
@@ -180,3 +281,11 @@
          cairo_t *c = cairo_create(surface);
          paint(c, width(), height(), /*scale=*/1.0);
          cairo_destroy(c);
+-        render();
++        cairo_surface_flush(surface);
++        setFrameBackground();
++        presentFrame();
++        xcb_flush(ui_->connection());
+     }
+ }
+ 

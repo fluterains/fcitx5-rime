@@ -1,2 +1,2 @@
 # Unified diffs contain a required space on empty context lines.
-patches/*.patch whitespace=-blank-at-eol
+patches/*.patch whitespace=-blank-at-eol,-blank-at-eof

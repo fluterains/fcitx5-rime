@@ -51,25 +51,26 @@ python3 tools/package-linear-highlight.py --revision 3 \
 IMMulticontext，检查原始字母、预编辑光标、输入过程中固定位置，以及提交后重新定位。
 不接触真实用户词库。
 
-## 减少候选窗闪动（linear4）
+## 实时伸缩与完整帧显示（linear5）
 
-X11 的 Rime 候选窗在同一段组合中保留已经达到的最大宽度，只在内容放不下时增宽。
-候选变短、左右移动拼音或切换候选时不会反复缩窄；上屏、取消或切换上下文后重新计算。
-因此当前组合内可能暂时保留少量尾部空白，而不会使用固定的大宽度覆盖所有输入。
+窗口仍按当前布局实时增宽、缩窄，不保留上一段或本段的最大窗口宽度。
+linear4 的“只增不减”处理已撤销。
 
-更新流程先在离屏缓冲区绘制完整下一帧，再调整窗口尺寸并复制画面；首次显示也在
-画面就绪后才映射窗口。同尺寸缓冲区会复用，每帧先清空以防残留文字和透明角旧像素。
-这不修改托盘、主题、Rime 原始输入预编辑或光标导航逻辑。
-
-本次只替换 Classic UI，Rime 插件保留 linear3。构建和打包：
+X11 候选窗使用两张交替绘制的 pixmap：当前完整画面作为窗口背景保持不变，
+下一帧在另一张缓冲中绘制。绘制完成后，先设置新背景，再改变窗口几何，
+使 X11 能用完整画面填充新暴露的区域，最后用一次 CopyArea 更新窗口内容。
+Expose 事件直接恢复已有完整帧，无需再次计算布局、清空并重画。
+同一个候选窗口持续复用；缓冲可以保留容量，窗口尺寸仍严格跟随布局。
+两个缓冲在窗口重建或对象释放时回收，不复用旧 visual 的资源。
 
 ```sh
-docker buildx build --output type=local,dest=out/resize-stability -f Dockerfile.build-classicui .
-python3 tools/package-linear-highlight.py --modules-only --revision 4 \
-  --build-dir out/resize-stability \
+docker buildx build --output type=local,dest=out/dynamic-resize -f Dockerfile.build-classicui .
+python3 tools/package-linear-highlight.py --modules-only --revision 5 \
+  --build-dir out/dynamic-resize \
   --modules-base out/linear-highlight/fcitx5-modules_5.1.7-1build3_amd64.deb
 ```
 
-独立 X11/GTK 测试中，同一段 `nihao` 输入及左右导航的尺寸变化由 8 次降为 2 次，
-没有中途隐藏和重新显示；提交后的新组合恢复较窄宽度。
-字母预编辑、光标、候选导航和提交/取消测试保持通过。视觉闪动仍需在实际桌面合成器中观察。
+独立 X11/GTK 验证：窗口尺寸包含真实增宽和缩窄；每个输入阶段通过 ClearArea
+触发背景填充，窗口像素与此前完整画面保持一致；固定锚点、原始字母光标、
+左右导航、提交和取消测试通过。该检查验证像素完整性，不等同于桌面合成器下
+的逐帧视觉测量，实际桌面仍需观察是否还有其他来源的动画或闪动。
