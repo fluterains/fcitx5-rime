@@ -10,13 +10,17 @@ import tarfile
 import tempfile
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument('--rime-base', required=True, type=Path)
+parser.add_argument('--rime-base', type=Path)
 parser.add_argument('--modules-base', required=True, type=Path)
+parser.add_argument('--modules-only', action='store_true',
+                    help='Package only Classic UI; keep the existing Rime plugin')
 parser.add_argument('--build-dir', type=Path, default=Path('out/linear-highlight'))
 parser.add_argument('--revision', type=int, default=1)
 args = parser.parse_args()
 if args.revision < 1:
     parser.error('--revision must be positive')
+if not args.modules_only and args.rime_base is None:
+    parser.error('--rime-base is required unless --modules-only is used')
 suffix = '+linear' + str(args.revision)
 output = args.build_dir.resolve()
 output.mkdir(parents=True, exist_ok=True)
@@ -61,7 +65,9 @@ def replace_classicui(root):
     shutil.copy2(output / 'libclassicui.so', root / 'usr/lib/x86_64-linux-gnu/fcitx5/libclassicui.so')
 
 
-paths = [package(args.rime_base, 'fcitx5-rime', replace_rime),
-         package(args.modules_base, 'fcitx5-modules', replace_classicui)]
+paths = []
+if not args.modules_only:
+    paths.append(package(args.rime_base, 'fcitx5-rime', replace_rime))
+paths.append(package(args.modules_base, 'fcitx5-modules', replace_classicui))
 (output / 'SHA256SUMS').write_text(''.join(
     f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in paths))

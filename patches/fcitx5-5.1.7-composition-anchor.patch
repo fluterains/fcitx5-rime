@@ -52,9 +52,29 @@
      if ((parent_->suspended() &&
           parent_->instance()->currentUI() != "kimpanel") ||
          !inputContext) {
+--- a/src/ui/classic/xcbinputwindow.h
++++ b/src/ui/classic/xcbinputwindow.h
+@@ -27,6 +27,9 @@
+ 
+ private:
+     void repaint();
++    cairo_surface_t *prepareFrame(int width, int height);
++    int frameWidth_ = 0;
++    int frameHeight_ = 0;
+     xcb_atom_t atomBlur_;
+     int dpi_ = -1;
+ };
 --- a/src/ui/classic/xcbinputwindow.cpp
 +++ b/src/ui/classic/xcbinputwindow.cpp
-@@ -56,9 +56,10 @@
+@@ -6,6 +6,7 @@
+  */
+ 
+ #include "xcbinputwindow.h"
++#include <algorithm>
+ #include <pango/pangocairo.h>
+ #include <xcb/xcb_aux.h>
+ #include <xcb/xcb_icccm.h>
+@@ -56,9 +57,10 @@
      topSW = theme.inputPanel->shadowMargin->marginTop.value();
      bottomSW = theme.inputPanel->shadowMargin->marginBottom.value();
  
@@ -68,7 +88,7 @@
  
      actualWidth = width() - leftSW - rightSW;
      actualWidth = actualWidth <= 0 ? width() : actualWidth;
-@@ -120,8 +121,8 @@
+@@ -120,8 +122,8 @@
  }
  
  void XCBInputWindow::updateDPI(InputContext *inputContext) {
@@ -79,3 +99,84 @@
  
      setFontDPI(dpi_);
  }
+@@ -130,6 +132,7 @@
+     if (!wid_) {
+         return;
+     }
++    const bool sameComposition = anchorActive_ && anchorContext_.get() == inputContext;
+     auto oldVisible = visible();
+     if (inputContext) {
+         updateDPI(inputContext);
+@@ -141,6 +144,22 @@
+         }
+         return;
+     }
++
++    // Rime candidate text changes width on almost every key. Within one
++    // composition, keep the widest frame so far instead of oscillating.
++    if (anchorActive_ && sameComposition && oldVisible) {
++        width = std::max(width, this->width());
++    }
++
++    // Prepare the complete next frame offscreen before changing X geometry.
++    auto *frame = prepareFrame(width, height);
++    if (!frame) {
++        return;
++    }
++    auto *c = cairo_create(frame);
++    paint(c, width, height, /*scale=*/1.0);
++    cairo_destroy(c);
++    cairo_surface_flush(frame);
+ 
+     if (width != this->width() || height != this->height()) {
+         resize(width, height);
+@@ -179,14 +198,13 @@
+         }
+     }
+ 
+-    cairo_t *c = cairo_create(prerender());
+     updatePosition(inputContext);
++    render();
+     if (!oldVisible) {
+         xcb_map_window(ui_->connection(), wid_);
+     }
+-    paint(c, width, height, /*scale=*/1.0);
+-    cairo_destroy(c);
+-    render();
++    cairo_surface_flush(surface_.get());
++    xcb_flush(ui_->connection());
+ }
+ 
+ bool XCBInputWindow::filterEvent(xcb_generic_event_t *event) {
+@@ -239,11 +257,30 @@
+     return false;
+ }
+ 
++cairo_surface_t *XCBInputWindow::prepareFrame(int width, int height) {
++    if (!contentSurface_ || frameWidth_ != width || frameHeight_ != height) {
++        contentSurface_.reset(cairo_surface_create_similar(
++            surface_.get(), CAIRO_CONTENT_COLOR_ALPHA, width, height));
++        frameWidth_ = width;
++        frameHeight_ = height;
++    }
++    if (cairo_surface_status(contentSurface_.get()) != CAIRO_STATUS_SUCCESS) {
++        contentSurface_.reset();
++        return nullptr;
++    }
++    // Reused buffers must not retain glyphs or pixels in transparent corners.
++    auto *cr = cairo_create(contentSurface_.get());
++    cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
++    cairo_paint(cr);
++    cairo_destroy(cr);
++    return contentSurface_.get();
++}
++
+ void XCBInputWindow::repaint() {
+     if (!visible()) {
+         return;
+     }
+-    if (auto *surface = prerender()) {
++    if (auto *surface = prepareFrame(width(), height())) {
+         cairo_t *c = cairo_create(surface);
+         paint(c, width(), height(), /*scale=*/1.0);
+         cairo_destroy(c);

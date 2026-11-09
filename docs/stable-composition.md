@@ -50,3 +50,26 @@ python3 tools/package-linear-highlight.py --revision 3 \
 数字上屏及上下键不改变 `_linear`。界面验证使用隔离 D-Bus、Xvfb 和 GTK
 IMMulticontext，检查原始字母、预编辑光标、输入过程中固定位置，以及提交后重新定位。
 不接触真实用户词库。
+
+## 减少候选窗闪动（linear4）
+
+X11 的 Rime 候选窗在同一段组合中保留已经达到的最大宽度，只在内容放不下时增宽。
+候选变短、左右移动拼音或切换候选时不会反复缩窄；上屏、取消或切换上下文后重新计算。
+因此当前组合内可能暂时保留少量尾部空白，而不会使用固定的大宽度覆盖所有输入。
+
+更新流程先在离屏缓冲区绘制完整下一帧，再调整窗口尺寸并复制画面；首次显示也在
+画面就绪后才映射窗口。同尺寸缓冲区会复用，每帧先清空以防残留文字和透明角旧像素。
+这不修改托盘、主题、Rime 原始输入预编辑或光标导航逻辑。
+
+本次只替换 Classic UI，Rime 插件保留 linear3。构建和打包：
+
+```sh
+docker buildx build --output type=local,dest=out/resize-stability -f Dockerfile.build-classicui .
+python3 tools/package-linear-highlight.py --modules-only --revision 4 \
+  --build-dir out/resize-stability \
+  --modules-base out/linear-highlight/fcitx5-modules_5.1.7-1build3_amd64.deb
+```
+
+独立 X11/GTK 测试中，同一段 `nihao` 输入及左右导航的尺寸变化由 8 次降为 2 次，
+没有中途隐藏和重新显示；提交后的新组合恢复较窄宽度。
+字母预编辑、光标、候选导航和提交/取消测试保持通过。视觉闪动仍需在实际桌面合成器中观察。
