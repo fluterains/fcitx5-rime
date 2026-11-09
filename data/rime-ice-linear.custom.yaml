@@ -1,0 +1,6 @@
+# Merge these entries into rime_ice.custom.yaml's existing patch mapping.
+# _linear is a built-in librime selector option; false is the default.
+patch:
+  "key_binder/bindings/+":
+    - { when: composing, accept: Down, set_option: _linear }
+    - { when: composing, accept: Up, unset_option: _linear }

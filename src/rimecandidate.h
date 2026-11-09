@@ -18,7 +18,7 @@ namespace fcitx {
 class RimeCandidateWord : public CandidateWord {
 public:
     RimeCandidateWord(RimeEngine *engine, const RimeCandidate &candidate,
-                      KeySym sym, int idx);
+                      KeySym sym, int idx, TextFormatFlags format = {});
 
     void select(InputContext *inputContext) const override;
 
