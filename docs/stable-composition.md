@@ -51,26 +51,30 @@ python3 tools/package-linear-highlight.py --revision 3 \
 IMMulticontext，检查原始字母、预编辑光标、输入过程中固定位置，以及提交后重新定位。
 不接触真实用户词库。
 
-## 实时伸缩与完整帧显示（linear5）
+## 实时伸缩与稳定画布（linear6）
 
-窗口仍按当前布局实时增宽、缩窄，不保留上一段或本段的最大窗口宽度。
-linear4 的“只增不减”处理已撤销。
+候选背景仍按当前布局实时增宽、缩窄，不保留上一段或本段的最大可见宽度。
+变化的只是绘制后的可见区域，不再是 X11 顶层窗口的几何尺寸。
 
-X11 候选窗使用两张交替绘制的 pixmap：当前完整画面作为窗口背景保持不变，
-下一帧在另一张缓冲中绘制。绘制完成后，先设置新背景，再改变窗口几何，
-使 X11 能用完整画面填充新暴露的区域，最后用一次 CopyArea 更新窗口内容。
-Expose 事件直接恢复已有完整帧，无需再次计算布局、清空并重画。
-同一个候选窗口持续复用；缓冲可以保留容量，窗口尺寸仍严格跟随布局。
-两个缓冲在窗口重建或对象释放时回收，不复用旧 visual 的资源。
+X11 候选窗在首次显示时建立一个显示器宽度、当前内容高度的固定画布。
+每次候选内容更新仍会重绘，因为文字和背景像素确实已经改变；但在另一张
+pixmap 中画完整下一帧后，只通过一次 CopyArea 更新画布中的可见区域。
+画布右侧保持透明，并通过 X Shape input region 限定为当前可见宽高，
+不会拦截其后的鼠标点击。
+
+由于顶层窗口不再逐键 resize，合成器不会先收到窗口尺寸变化、显示新暴露的
+透明区域，再等待下一次绘制补上内容。输入过程中的宽度变化只产生一个完整的
+新像素帧，不再产生空白或旧内容的中间帧。Expose 直接复制缓存帧，也不重新
+计算布局。
 
 ```sh
-docker buildx build --output type=local,dest=out/dynamic-resize -f Dockerfile.build-classicui .
-python3 tools/package-linear-highlight.py --modules-only --revision 5 \
-  --build-dir out/dynamic-resize \
+docker buildx build --output type=local,dest=out/canvas-resize -f Dockerfile.build-classicui .
+python3 tools/package-linear-highlight.py --modules-only --revision 6 \
+  --build-dir out/canvas-resize \
   --modules-base out/linear-highlight/fcitx5-modules_5.1.7-1build3_amd64.deb
 ```
 
-独立 X11/GTK 验证：窗口尺寸包含真实增宽和缩窄；每个输入阶段通过 ClearArea
-触发背景填充，窗口像素与此前完整画面保持一致；固定锚点、原始字母光标、
-左右导航、提交和取消测试通过。该检查验证像素完整性，不等同于桌面合成器下
-的逐帧视觉测量，实际桌面仍需观察是否还有其他来源的动画或闪动。
+独立 X11/GTK 验证中，顶层画布保持 `1920x78`，X Shape 可见宽度仍按
+`434 -> 527 -> 449 -> 467` 实时变化；输入过程中没有 width resize。
+固定锚点、原始字母光标、左右导航、提交、取消及 ClearArea 像素完整性测试通过。
+该自动化检查不等同于 Mutter 下的逐帧录像，最终仍需在实际桌面确认合成效果。

@@ -26,7 +26,7 @@ output = args.build_dir.resolve()
 output.mkdir(parents=True, exist_ok=True)
 
 
-def package(base, name, replace):
+def package(base, name, replace, extra_depends=()):
     with tempfile.TemporaryDirectory(prefix='linear-package-') as temporary:
         root = Path(temporary) / 'root'
         subprocess.run(['dpkg-deb', '-R', str(base), str(root)], check=True)
@@ -46,6 +46,12 @@ def package(base, name, replace):
             f'{hashlib.md5(p.read_bytes()).hexdigest()}  {p.relative_to(root)}\n'
             for p in files))
         text = re.sub(r'^Version: .+$', 'Version: ' + version, text, flags=re.M)
+        if extra_depends:
+            text = re.sub(
+                r'^Depends: (.+)$',
+                lambda match: 'Depends: ' + match.group(1) + ', ' +
+                ', '.join(extra_depends),
+                text, flags=re.M)
         text += f'X-Local-Variant: linear-highlight-{args.revision}\n'
         size = (sum(p.stat().st_size for p in files) + 1023) // 1024
         text = re.sub(r'^Installed-Size: \d+$', f'Installed-Size: {size}', text, flags=re.M)
@@ -68,6 +74,7 @@ def replace_classicui(root):
 paths = []
 if not args.modules_only:
     paths.append(package(args.rime_base, 'fcitx5-rime', replace_rime))
-paths.append(package(args.modules_base, 'fcitx5-modules', replace_classicui))
+paths.append(package(args.modules_base, 'fcitx5-modules', replace_classicui,
+                     extra_depends=('libxcb-shape0',)))
 (output / 'SHA256SUMS').write_text(''.join(
     f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in paths))
