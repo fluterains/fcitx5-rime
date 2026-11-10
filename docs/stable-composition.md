@@ -19,10 +19,12 @@
 ## 固定候选窗锚点
 
 配套 Classic UI 修改维护在 `fluterains/fcitx5` 的
-`4fa62ba2fae3de3dd1c44a4f94260e7cf558cfc3` 提交中，基于 Fcitx5 5.1.7：
+`0a9a95cbd65f7a460b392d7e08fd423c257fad2c` 提交中，基于 Fcitx5 5.1.7：
 一次 Rime 组合开始时记录锚点；输入字母、左右移动光标、切换候选时保持该锚点。
 清空、上屏、切换输入上下文后重新取位置。屏幕边缘仍保留原有的防溢出处理。
 应用上报的光标矩形不被改写，因此应用内的光标可以正常移动。
+候选框首次因右侧溢出而左移后，会在本次组合内保留所需的最大左移量；
+候选内容缩窄时不会向右回弹，内容再次变宽时只会继续向左避让。
 
 这项定位修改不覆盖 Kimpanel、应用自绘候选框或由 Wayland 合成器定位的面板。
 X11、Wayland 绘制后端都保留编译，但本次只在独立 X11 会话验证定位。
@@ -30,10 +32,10 @@ X11、Wayland 绘制后端都保留编译，但本次只在独立 X11 会话验�
 ## 构建与安装
 
 ```sh
-docker buildx build --output type=local,dest=out/stable-composition-7 -f Dockerfile.build .
-docker buildx build --output type=local,dest=out/stable-composition-7 -f Dockerfile.build-classicui .
-python3 tools/package-linear-highlight.py --revision 7 \
-  --build-dir out/stable-composition-7 \
+docker buildx build --output type=local,dest=out/stable-composition-8 -f Dockerfile.build .
+docker buildx build --output type=local,dest=out/stable-composition-8 -f Dockerfile.build-classicui .
+python3 tools/package-linear-highlight.py --revision 8 \
+  --build-dir out/stable-composition-8 \
   --rime-base out/fcitx5-rime_5.1.4-2build2+patched.1_amd64.deb \
   --modules-base out/linear-highlight/fcitx5-modules_5.1.7-1build3_amd64.deb
 ```
@@ -52,7 +54,7 @@ python3 tools/package-linear-highlight.py --revision 7 \
 IMMulticontext，检查原始字母、预编辑光标、输入过程中固定位置，以及提交后重新定位。
 不接触真实用户词库。
 
-## 实时伸缩与稳定画布（linear7）
+## 实时伸缩与稳定画布（linear8）
 
 候选背景仍按当前布局实时增宽、缩窄，不保留上一段或本段的最大可见宽度。
 变化的只是绘制后的可见区域，不再是 X11 顶层窗口的几何尺寸。
@@ -69,9 +71,9 @@ pixmap 中画完整下一帧后，只通过一次 CopyArea 更新画布中的可
 计算布局。
 
 ```sh
-docker buildx build --output type=local,dest=out/canvas-resize-7 -f Dockerfile.build-classicui .
-python3 tools/package-linear-highlight.py --modules-only --revision 7 \
-  --build-dir out/canvas-resize-7 \
+docker buildx build --output type=local,dest=out/canvas-resize-8 -f Dockerfile.build-classicui .
+python3 tools/package-linear-highlight.py --modules-only --revision 8 \
+  --build-dir out/canvas-resize-8 \
   --modules-base out/linear-highlight/fcitx5-modules_5.1.7-1build3_amd64.deb
 ```
 

@@ -2,7 +2,7 @@
 FROM ubuntu:24.04 AS builder
 ARG DEBIAN_FRONTEND=noninteractive
 ARG BUILD_JOBS=8
-ARG FCITX5_REF=4fa62ba2fae3de3dd1c44a4f94260e7cf558cfc3
+ARG FCITX5_REF=0a9a95cbd65f7a460b392d7e08fd423c257fad2c
 ARG APT_MIRROR=http://mirror.nju.edu.cn/ubuntu
 RUN sed -i "s|http://archive.ubuntu.com/ubuntu|${APT_MIRROR}|g; s|http://security.ubuntu.com/ubuntu|${APT_MIRROR}|g" \
       /etc/apt/sources.list.d/ubuntu.sources \
