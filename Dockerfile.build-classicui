@@ -2,7 +2,11 @@
 FROM ubuntu:24.04 AS builder
 ARG DEBIAN_FRONTEND=noninteractive
 ARG BUILD_JOBS=8
-RUN apt-get update && apt-get install -y --no-install-recommends \
+ARG FCITX5_REF=4fa62ba2fae3de3dd1c44a4f94260e7cf558cfc3
+ARG APT_MIRROR=http://mirror.nju.edu.cn/ubuntu
+RUN sed -i "s|http://archive.ubuntu.com/ubuntu|${APT_MIRROR}|g; s|http://security.ubuntu.com/ubuntu|${APT_MIRROR}|g" \
+      /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake ninja-build extra-cmake-modules gettext curl ca-certificates \
     libsystemd-dev libfmt-dev uuid-dev libexpat1-dev libjson-c-dev \
     libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-util-dev \
@@ -13,11 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-dev libwayland-dev wayland-protocols iso-codes xkb-data \
     libevent-dev pkg-config zlib1g-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
-RUN curl -fL https://codeload.github.com/fcitx/fcitx5/tar.gz/refs/tags/5.1.7 -o /tmp/source.tar.gz \
+RUN curl -fL "https://codeload.github.com/fluterains/fcitx5/tar.gz/${FCITX5_REF}" -o /tmp/source.tar.gz \
     && tar -xzf /tmp/source.tar.gz --strip-components=1
-COPY patches/fcitx5-5.1.7-composition-anchor.patch /tmp/highlight.patch
-RUN patch -p1 < /tmp/highlight.patch \
-    && cmake -S . -B /build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+RUN cmake -S . -B /build -G Ninja -DCMAKE_BUILD_TYPE=Release \
        -DCMAKE_INSTALL_PREFIX=/usr -DENABLE_TEST=OFF -DENABLE_ENCHANT=OFF \
     && cmake --build /build --target classicui --parallel "${BUILD_JOBS}"
 FROM scratch
