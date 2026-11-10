@@ -156,3 +156,6 @@ msgstr "已启用繁体中文。"
 #: src/rimeengine.h:66
 msgid "User data dir"
 msgstr "用户数据目录"
+
+msgid "Raw input"
+msgstr "原始输入字母"

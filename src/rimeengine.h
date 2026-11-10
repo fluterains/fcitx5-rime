@@ -44,10 +44,11 @@ FCITX_CONFIG_ENUM_NAME_WITH_I18N(SharedStatePolicy,
                                  N_("Follow Global Configuration"), N_("All"),
                                  N_("Program"), N_("No"));
 
-enum class PreeditMode { No, ComposingText, CommitPreview };
+enum class PreeditMode { No, ComposingText, CommitPreview, RawInput };
 
 FCITX_CONFIG_ENUM_NAME_WITH_I18N(PreeditMode, N_("Do not show"),
-                                 N_("Composing text"), N_("Commit preview"))
+                                 N_("Composing text"), N_("Commit preview"),
+                                 N_("Raw input"))
 
 FCITX_CONFIGURATION(
     RimeEngineConfig,
