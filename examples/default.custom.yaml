@@ -1,0 +1,3 @@
+# Merge into the existing ~/.local/share/fcitx5/rime/default.custom.yaml patch.
+patch:
+  menu/page_size: 7

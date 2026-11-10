@@ -1,0 +1,26 @@
+---
+name: patch_test
+version: "1"
+sort: by_weight
+...
+你好	ni hao	100
+您好	ni hao	99
+你号	ni hao	98
+拟好	ni hao	97
+泥好	ni hao	96
+霓好	ni hao	95
+倪好	ni hao	94
+你	ni	100
+尼	ni	99
+泥	ni	98
+拟	ni	97
+逆	ni	96
+倪	ni	95
+霓	ni	94
+好	hao	100
+号	hao	99
+浩	hao	98
+豪	hao	97
+毫	hao	96
+郝	hao	95
+耗	hao	94

@@ -1,0 +1,6 @@
+# Merge into the existing schema custom patch; do not replace your file.
+# Remove old Down/Up set_option/unset_option _linear bindings, if present.
+patch:
+  "speller/delimiter": "'"
+  "switches/+":
+    - { name: _linear, reset: 1 }

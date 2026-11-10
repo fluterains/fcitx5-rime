@@ -30,8 +30,11 @@ RUN cmake -S . -B /build \
     && DESTDIR=/out/root cmake --install /build \
     && mkdir -p /out \
     && tar -C /out/root -czf \
-        /out/fcitx5-rime-5.1.4-tray-labels.tar.gz \
+        /out/fcitx5-rime-5.1.4-patched.2-runtime.tar.gz \
         .
 
+RUN c++ -std=c++17 tests/verify-navigation.cpp -o /out/verify-navigation $(pkg-config --cflags --libs rime)
+
 FROM scratch
-COPY --from=builder /out/fcitx5-rime-5.1.4-tray-labels.tar.gz /
+COPY --from=builder /out/fcitx5-rime-5.1.4-patched.2-runtime.tar.gz /
+COPY --from=builder /out/verify-navigation /

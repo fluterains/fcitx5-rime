@@ -1,3 +1,5 @@
+本 fork 的正式定制功能和安装方式见 [Patch2](PATCH2.md)。
+
 ## RIME support for Fcitx
 
 RIME(中州韻輸入法引擎) is _mainly_ a Traditional Chinese input method engine.

@@ -1,0 +1,21 @@
+schema:
+  schema_id: patch_test
+  name: Patch Test
+  version: "1"
+switches:
+  - { name: ascii_mode, reset: 0 }
+  - { name: _linear, reset: 1 }
+engine:
+  processors: [ascii_composer, recognizer, key_binder, speller, selector, navigator, express_editor]
+  segmentors: [abc_segmentor, fallback_segmentor]
+  translators: [script_translator]
+speller:
+  alphabet: abcdefghijklmnopqrstuvwxyz
+  delimiter: "'"
+translator:
+  dictionary: patch_test
+  enable_user_dict: false
+key_binder:
+  bindings: []
+menu:
+  page_size: 7
